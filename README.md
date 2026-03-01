@@ -1,6 +1,6 @@
 # ScreenPath
 
-ScreenPath is a macOS menu bar utility that tracks screenshot files, keeps a short history of recent captures, and makes it easy to copy or drag the latest screenshot into tools like Codex, Claude Code, and ChatGPT.
+ScreenPath is a macOS menu bar utility that tracks screenshot files, keeps a short history of recent captures, and makes it easy to drag the latest screenshot or copy its path to any tool.
 
 ## What It Does
 
@@ -66,7 +66,7 @@ Create `dist/ScreenPath.app/Contents/Info.plist` with your bundle metadata, then
 ditto -c -k --sequesterRsrc --keepParent dist/ScreenPath.app dist/ScreenPath.app.zip
 ```
 
-## Menu Behavior
+## Menu Behaviour
 
 The menu currently includes:
 
@@ -89,22 +89,6 @@ The menu currently includes:
 - Log file: `~/Library/Application Support/ScreenPath/paths.log`
 - Maximum log entries: `25`
 
-## Distribution Notes
-
-For a polished public release outside the App Store:
-
-- package a `ScreenPath.app`
-- optionally sign it with Developer ID
-- optionally notarize it with Apple
-- attach `ScreenPath.app.zip` to a GitHub Release
-- point the Homebrew cask at that release asset
-
-## Development
-
-```bash
-swift build
-swift run ScreenPath
-```
 
 ## License
 
