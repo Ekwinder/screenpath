@@ -3,7 +3,7 @@ import Foundation
 
 enum ScreenPathConfig {
     static let appName = "ScreenPath"
-    static let version = "0.1"
+    static let version = "0.2"
     static let maxRecent = 10
     static let inlineRecentCount = 3
     static let maxLogEntries = 25
