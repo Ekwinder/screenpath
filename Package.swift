@@ -12,10 +12,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ScreenPath",
-            path: "Sources/ScreenPath",
-            resources: [
-                .process("Resources")
-            ]
+            path: "Sources/ScreenPath"
         )
     ]
 )
