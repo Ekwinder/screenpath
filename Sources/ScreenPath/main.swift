@@ -3,7 +3,7 @@ import Foundation
 
 enum ScreenPathConfig {
     static let appName = "ScreenPath"
-    static let version = "0.2"
+    static let version = "0.3"
     static let maxRecent = 10
     static let inlineRecentCount = 3
     static let maxLogEntries = 25
@@ -54,6 +54,7 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
         menu.removeAllItems()
 
         addWatchingSection()
+        addAccessSectionIfNeeded()
         addLatestSection()
         addRecentsSection()
         addOptionsSection()
@@ -68,12 +69,31 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
         menu.addItem(item)
     }
 
+
+    private func addAccessSectionIfNeeded() {
+        guard !watcher.hasDirectoryAccess else { return }
+
+        let warningItem = NSMenuItem(title: "Folder access required", action: nil, keyEquivalent: "")
+        warningItem.isEnabled = false
+        menu.addItem(warningItem)
+
+        let detailItem = NSMenuItem(title: "Grant access to the screenshot folder in System Settings", action: nil, keyEquivalent: "")
+        detailItem.isEnabled = false
+        menu.addItem(detailItem)
+
+        let openSettingsItem = NSMenuItem(title: "Open Files & Folders Settings", action: #selector(openFilesAndFoldersSettings), keyEquivalent: "")
+        openSettingsItem.target = self
+        menu.addItem(openSettingsItem)
+
+        menu.addItem(.separator())
+    }
+
     private func addLatestSection() {
         let latestLabel = watcher.latestPath.map { compactPathLabel($0, maxLength: 28) } ?? "No screenshot available"
         let latestItem = NSMenuItem(title: "Copy Latest Path: \(latestLabel)", action: #selector(copyLatestPath), keyEquivalent: "")
         latestItem.target = self
         latestItem.toolTip = watcher.latestPath
-        latestItem.isEnabled = watcher.latestPath != nil
+        latestItem.isEnabled = watcher.hasDirectoryAccess && watcher.latestPath != nil
         menu.addItem(latestItem)
 
         for item in makeDragLatestMenuItems() {
@@ -206,7 +226,7 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         revealItem.target = self
-        revealItem.isEnabled = watcher.latestPath != nil
+        revealItem.isEnabled = watcher.hasDirectoryAccess && watcher.latestPath != nil
         optionsMenu.addItem(revealItem)
 
         optionsMenu.addItem(.separator())
@@ -252,6 +272,20 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
 
     @objc private func openLogFile() {
         NSWorkspace.shared.open(URL(fileURLWithPath: watcher.logPath))
+    }
+
+    @objc private func openFilesAndFoldersSettings() {
+        let urls = [
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"),
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"),
+            URL(string: "x-apple.systempreferences:com.apple.Settings.PrivacySecurity")
+        ].compactMap { $0 }
+
+        for url in urls where NSWorkspace.shared.open(url) {
+            return
+        }
+
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
     }
 
     @objc private func copyRecentPath(_ sender: NSMenuItem) {
@@ -354,6 +388,7 @@ final class ScreenshotWatcher: NSObject {
     private(set) var watchDirectory: String
     private(set) var recentPaths: [String] = []
     private(set) var latestPath: String?
+    private(set) var hasDirectoryAccess: Bool = true
 
     private let maxRecent: Int
     private let maxLogEntries: Int
@@ -380,6 +415,7 @@ final class ScreenshotWatcher: NSObject {
         self.fileScanInterval = fileScanInterval
         super.init()
 
+        refreshDirectoryAccessState()
         seedKnownFiles()
         bootstrapRecentFromDisk()
     }
@@ -398,6 +434,9 @@ final class ScreenshotWatcher: NSObject {
 
     @objc private func onTimer() {
         refreshWatchDirectoryIfNeeded()
+        if refreshDirectoryAccessState() {
+            onChange?()
+        }
         pruneDeletedScreenshots()
         scanForNewScreenshots()
     }
@@ -415,6 +454,22 @@ final class ScreenshotWatcher: NSObject {
         latestPath = recentPaths.first
     }
 
+
+    @discardableResult
+    private func refreshDirectoryAccessState() -> Bool {
+        let previous = hasDirectoryAccess
+        do {
+            _ = try fileManager.contentsOfDirectory(atPath: watchDirectory)
+            hasDirectoryAccess = true
+        } catch {
+            hasDirectoryAccess = false
+            knownFiles.removeAll()
+            recentPaths.removeAll()
+            latestPath = nil
+        }
+        return previous != hasDirectoryAccess
+    }
+
     private func refreshWatchDirectoryIfNeeded() {
         let now = Date()
         guard now.timeIntervalSince(lastDirectoryRefresh) >= directoryRefreshInterval else { return }
@@ -424,6 +479,7 @@ final class ScreenshotWatcher: NSObject {
         guard resolved != watchDirectory else { return }
 
         watchDirectory = resolved
+        refreshDirectoryAccessState()
         knownFiles = Set(Self.listImageFiles(in: watchDirectory))
         pruneInMemoryStateAgainstCurrentDirectory()
         onChange?()
