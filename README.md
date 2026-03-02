@@ -77,7 +77,7 @@ The menu currently includes:
   - `Open paths.log`
   - `Reveal Latest in Finder`
   - `About ScreenPath`
-  - `Version: 0.1`
+  - `Version: 0.2`
 
 ## Requirements
 
