@@ -9,6 +9,10 @@ brew tap Ekwinder/screenpath
 brew install --cask screenpath
 ```
 
+## Manual Install
+
+Download the latest `ScreenPath.dmg` from GitHub Releases, open it, and drag `ScreenPath.app` into `Applications`.
+
 ## Open
 
 This build is currently unsigned and not notarized. If macOS blocks it on first launch:
