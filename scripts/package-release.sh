@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP_NAME="ScreenPath"
-VERSION="0.3"
-BUILD="3"
+VERSION="0.4"
+BUILD="4"
 DIST_DIR="$ROOT/dist"
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 ZIP_PATH="$DIST_DIR/${APP_NAME}.app.zip"
