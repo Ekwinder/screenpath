@@ -9,6 +9,8 @@ brew tap Ekwinder/screenpath
 brew install --cask screenpath
 ```
 
+Homebrew now reads the cask directly from this repository.
+
 ## Manual Install
 
 Download the latest `ScreenPath.dmg` from GitHub Releases, open it, and drag `ScreenPath.app` into `Applications`.
