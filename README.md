@@ -5,7 +5,7 @@ A macOS menu bar utility that tracks screenshot files and makes the latest scree
 ## Install
 
 ```bash
-brew tap Ekwinder/screenpath
+brew tap Ekwinder/screenpath https://github.com/Ekwinder/screenpath
 brew install --cask screenpath
 ```
 
