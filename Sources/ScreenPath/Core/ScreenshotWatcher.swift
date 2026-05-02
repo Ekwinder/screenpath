@@ -1,5 +1,4 @@
-import Darwin
-import Dispatch
+import AppKit
 import Foundation
 
 @MainActor
@@ -15,24 +14,26 @@ final class ScreenshotWatcher: NSObject {
     private let maxRecent: Int
     private let maxLogEntries: Int
     private let directoryRefreshInterval: TimeInterval
+    private let fileScanInterval: TimeInterval
 
     private var knownFiles: Set<String> = []
     private var timer: Timer?
     private var lastDirectoryRefresh: Date = .distantPast
-    private var directoryMonitor: DispatchSourceFileSystemObject?
     private let fileManager = FileManager.default
 
     init(
         logPath: String,
         maxRecent: Int,
         maxLogEntries: Int,
-        directoryRefreshInterval: TimeInterval
+        directoryRefreshInterval: TimeInterval,
+        fileScanInterval: TimeInterval
     ) {
         self.watchDirectory = Self.resolveScreenshotDirectory()
         self.logPath = logPath
         self.maxRecent = maxRecent
         self.maxLogEntries = maxLogEntries
         self.directoryRefreshInterval = directoryRefreshInterval
+        self.fileScanInterval = fileScanInterval
         super.init()
 
         refreshDirectoryAccessState()
@@ -43,33 +44,22 @@ final class ScreenshotWatcher: NSObject {
     func start() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(
-            timeInterval: directoryRefreshInterval,
+            timeInterval: fileScanInterval,
             target: self,
             selector: #selector(onTimer),
             userInfo: nil,
             repeats: true
         )
         RunLoop.main.add(timer!, forMode: .common)
-        startDirectoryMonitor()
     }
 
     @objc private func onTimer() {
-        let directoryChanged = refreshWatchDirectoryIfNeeded()
-        let accessChanged = refreshDirectoryAccessState()
-
-        if !hasDirectoryAccess {
-            stopDirectoryMonitor()
-            if accessChanged || directoryChanged {
-                onChange?()
-            }
-            return
-        }
-
-        if directoryChanged || accessChanged {
-            startDirectoryMonitor()
-            synchronizeKnownFiles(logNewPaths: false)
+        refreshWatchDirectoryIfNeeded()
+        if refreshDirectoryAccessState() {
             onChange?()
         }
+        pruneDeletedScreenshots()
+        scanForNewScreenshots()
     }
 
     private func seedKnownFiles() {
@@ -100,81 +90,28 @@ final class ScreenshotWatcher: NSObject {
         return previous != hasDirectoryAccess
     }
 
-    @discardableResult
-    private func refreshWatchDirectoryIfNeeded() -> Bool {
+    private func refreshWatchDirectoryIfNeeded() {
         let now = Date()
-        guard now.timeIntervalSince(lastDirectoryRefresh) >= directoryRefreshInterval else { return false }
+        guard now.timeIntervalSince(lastDirectoryRefresh) >= directoryRefreshInterval else { return }
         lastDirectoryRefresh = now
 
         let resolved = Self.resolveScreenshotDirectory()
-        guard resolved != watchDirectory else { return false }
+        guard resolved != watchDirectory else { return }
 
         watchDirectory = resolved
         refreshDirectoryAccessState()
         knownFiles = Set(Self.listImageFiles(in: watchDirectory))
-        bootstrapRecentFromDisk()
-        return true
+        pruneInMemoryStateAgainstCurrentDirectory()
+        onChange?()
     }
 
-    private func startDirectoryMonitor() {
-        stopDirectoryMonitor()
-        guard hasDirectoryAccess else { return }
-
-        let descriptor = open(watchDirectory, O_EVTONLY)
-        guard descriptor >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: [.write, .rename, .delete, .extend, .attrib, .link, .revoke],
-            queue: DispatchQueue.main
-        )
-
-        source.setEventHandler { [weak self] in
-            self?.handleDirectoryEvent()
-        }
-        source.setCancelHandler { [descriptor] in
-            close(descriptor)
-        }
-        directoryMonitor = source
-        source.resume()
-    }
-
-    private func stopDirectoryMonitor() {
-        directoryMonitor?.cancel()
-        directoryMonitor = nil
-    }
-
-    private func handleDirectoryEvent() {
-        guard hasDirectoryAccess else { return }
-        synchronizeKnownFiles(logNewPaths: true)
-    }
-
-    private func synchronizeKnownFiles(logNewPaths: Bool) {
+    private func pruneDeletedScreenshots() {
         let current = Set(Self.listImageFiles(in: watchDirectory))
         let removedPaths = knownFiles.subtracting(current)
-        let newPaths = current.subtracting(knownFiles)
-            .sorted { Self.lastModified(at: $0) < Self.lastModified(at: $1) }
-
-        guard !removedPaths.isEmpty || !newPaths.isEmpty else { return }
+        guard !removedPaths.isEmpty else { return }
 
         knownFiles = current
-
-        if !removedPaths.isEmpty {
-            pruneInMemoryStateAgainstCurrentDirectory()
-        }
-
-        for path in newPaths {
-            latestPath = path
-            recentPaths.removeAll { $0 == path }
-            recentPaths.insert(path, at: 0)
-            if recentPaths.count > maxRecent {
-                recentPaths.removeLast(recentPaths.count - maxRecent)
-            }
-            if logNewPaths {
-                appendToLog(path: path)
-            }
-        }
-
+        pruneInMemoryStateAgainstCurrentDirectory()
         onChange?()
     }
 
@@ -184,6 +121,26 @@ final class ScreenshotWatcher: NSObject {
         if latestPath == nil {
             latestPath = recentPaths.first
         }
+    }
+
+    private func scanForNewScreenshots() {
+        let current = Set(Self.listImageFiles(in: watchDirectory))
+        let newPaths = current.subtracting(knownFiles)
+            .sorted { Self.lastModified(at: $0) < Self.lastModified(at: $1) }
+        guard !newPaths.isEmpty else { return }
+
+        for path in newPaths {
+            knownFiles.insert(path)
+            latestPath = path
+            recentPaths.removeAll { $0 == path }
+            recentPaths.insert(path, at: 0)
+            if recentPaths.count > maxRecent {
+                recentPaths.removeLast(recentPaths.count - maxRecent)
+            }
+            appendToLog(path: path)
+        }
+
+        onChange?()
     }
 
     private func appendToLog(path: String) {

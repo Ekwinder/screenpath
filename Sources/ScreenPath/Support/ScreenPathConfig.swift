@@ -5,9 +5,10 @@ enum ScreenPathConfig {
     static let appName = "ScreenPath"
     static let version = "0.4"
     static let maxRecent = 9
-    static let recentPreviewCount = 8
+    static let inlineRecentCount = 8
     static let maxLogEntries = 25
     static let directoryRefreshInterval: TimeInterval = 10
+    static let fileScanInterval: TimeInterval = 1.5
     static let logPath = ("~/Library/Application Support/ScreenPath/paths.log" as NSString).expandingTildeInPath
     static let dragPreviewMenuWidth: CGFloat = 320
     static let compactGridColumns = 2

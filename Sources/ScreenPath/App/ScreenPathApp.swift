@@ -14,7 +14,8 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
             logPath: ScreenPathConfig.logPath,
             maxRecent: ScreenPathConfig.maxRecent,
             maxLogEntries: ScreenPathConfig.maxLogEntries,
-            directoryRefreshInterval: ScreenPathConfig.directoryRefreshInterval
+            directoryRefreshInterval: ScreenPathConfig.directoryRefreshInterval,
+            fileScanInterval: ScreenPathConfig.fileScanInterval
         )
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -63,17 +64,8 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
         warningItem.isEnabled = false
         menu.addItem(warningItem)
 
-        let detailText = "Grant access to the screenshot folder in System Settings"
-        let detailHeight = WarningMenuLabelView.preferredHeight(
-            for: detailText,
-            width: ScreenPathConfig.dragPreviewMenuWidth
-        )
-        let detailItem = NSMenuItem()
-        detailItem.view = WarningMenuLabelView(
-            frame: NSRect(x: 0, y: 0, width: ScreenPathConfig.dragPreviewMenuWidth, height: detailHeight),
-            text: detailText,
-            color: .systemRed
-        )
+        let detailItem = NSMenuItem(title: "Grant access to the screenshot folder in System Settings", action: nil, keyEquivalent: "")
+        detailItem.isEnabled = false
         menu.addItem(detailItem)
 
         let openSettingsItem = NSMenuItem(title: "Open Files & Folders Settings", action: #selector(openFilesAndFoldersSettings), keyEquivalent: "")
@@ -138,6 +130,7 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
             return
         }
 
+
         let gridEntries = recentPaths.compactMap(Self.makeGridEntry)
 
         if gridEntries.isEmpty {
@@ -148,9 +141,9 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
             return
         }
 
-        let recentEntries = Array(gridEntries.prefix(ScreenPathConfig.recentPreviewCount))
+        let inlineEntries = Array(gridEntries.prefix(ScreenPathConfig.inlineRecentCount))
         let recentsMenu = NSMenu()
-        recentsMenu.addItem(makeGridMenuItem(entries: recentEntries))
+        recentsMenu.addItem(makeGridMenuItem(entries: inlineEntries))
 
         let recentsItem = NSMenuItem(title: "Recent screenshots", action: nil, keyEquivalent: "")
         recentsItem.submenu = recentsMenu
