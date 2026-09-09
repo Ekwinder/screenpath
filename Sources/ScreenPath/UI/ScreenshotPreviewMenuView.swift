@@ -27,30 +27,20 @@ final class ScreenshotPreviewMenuView: NSView, NSDraggingSource {
             }
         }
 
-        var showsPersistentCopyLabel: Bool {
-            switch self {
-            case .large:
-                return true
-            case .compact:
-                return false
-            }
-        }
     }
 
     private let fileURL: URL
     private let image: NSImage
     private let style: Style
-    private let copyButton: NSButton
-    private let hoverLabel = NSTextField(labelWithString: "Copy Path")
+    private let copyButton: CopyPathButton
     private var hoverPollTimer: Timer?
-    private var hoverStartTime: Date?
-    private var isHoveringCopyButton = false
+    private var copiedUntil: Date?
 
     init(frame frameRect: NSRect, fileURL: URL, image: NSImage, style: Style) {
         self.fileURL = fileURL
         self.image = image
         self.style = style
-        self.copyButton = NSButton(title: ">_", target: nil, action: nil)
+        self.copyButton = CopyPathButton(title: "Copy Path >_", target: nil, action: nil)
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -61,12 +51,9 @@ final class ScreenshotPreviewMenuView: NSView, NSDraggingSource {
         copyButton.bezelStyle = .inline
         copyButton.font = NSFont.monospacedSystemFont(ofSize: style.copyButtonFontSize, weight: .semibold)
         copyButton.contentTintColor = .secondaryLabelColor
+        copyButton.setAccessibilityLabel("Copy screenshot path")
         addSubview(copyButton)
 
-        hoverLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-        hoverLabel.textColor = .secondaryLabelColor
-        hoverLabel.isHidden = !style.showsPersistentCopyLabel
-        addSubview(hoverLabel)
     }
 
     @available(*, unavailable)
@@ -88,44 +75,32 @@ final class ScreenshotPreviewMenuView: NSView, NSDraggingSource {
 
     override func layout() {
         super.layout()
-        let buttonSize = NSSize(width: 28, height: 18)
+        let buttonSize = NSSize(width: 90, height: 20)
         copyButton.frame = NSRect(
             x: bounds.width - buttonSize.width - 6,
-            y: bounds.height - buttonSize.height - 4,
+            y: bounds.height - buttonSize.height - 3,
             width: buttonSize.width,
             height: buttonSize.height
-        )
-
-        hoverLabel.sizeToFit()
-        hoverLabel.frame = NSRect(
-            x: copyButton.frame.minX - hoverLabel.frame.width + 2,
-            y: copyButton.frame.minY + ((copyButton.frame.height - hoverLabel.frame.height) / 2),
-            width: hoverLabel.frame.width,
-            height: hoverLabel.frame.height
         )
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        hoverPollTimer?.invalidate()
+        hoverPollTimer = nil
+        copiedUntil = nil
+        copyButton.title = "Copy Path >_"
+        copyButton.isHovered = false
 
-        if style.showsPersistentCopyLabel {
-            hoverPollTimer?.invalidate()
-            hoverPollTimer = nil
-            hoverLabel.isHidden = false
-            return
+        guard window != nil else { return }
+        // Menu tracking uses a nested run loop; keep feedback active in common modes.
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.checkHoverState()
+            }
         }
-
-        if window == nil {
-            hoverPollTimer?.invalidate()
-            hoverPollTimer = nil
-            return
-        }
-
-        if hoverPollTimer == nil {
-            let timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(checkHoverState), userInfo: nil, repeats: true)
-            RunLoop.main.add(timer, forMode: .common)
-            hoverPollTimer = timer
-        }
+        RunLoop.main.add(timer, forMode: .common)
+        hoverPollTimer = timer
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -152,41 +127,27 @@ final class ScreenshotPreviewMenuView: NSView, NSDraggingSource {
         return NSRect(x: originX, y: originY, width: drawWidth, height: drawHeight)
     }
 
-    @objc private func checkHoverState() {
-        guard !style.showsPersistentCopyLabel else {
-            hoverLabel.isHidden = false
-            return
-        }
-
+    private func checkHoverState() {
         guard let window else { return }
-        let pointerInWindow = window.mouseLocationOutsideOfEventStream
-        let pointerInView = convert(pointerInWindow, from: nil)
-        let isHovered = copyButton.frame.contains(pointerInView)
-
-        if isHovered {
-            if !isHoveringCopyButton {
-                isHoveringCopyButton = true
-                hoverStartTime = Date()
-                hoverLabel.isHidden = true
-            } else if let hoverStartTime,
-                      Date().timeIntervalSince(hoverStartTime) >= ScreenPathConfig.copyHoverDelay {
-                hoverLabel.isHidden = false
-            }
-            return
+        let pointer = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        copyButton.isHovered = copyButton.frame.contains(pointer)
+        if let copiedUntil, Date() >= copiedUntil {
+            self.copiedUntil = nil
+            copyButton.title = "Copy Path >_"
         }
-
-        isHoveringCopyButton = false
-        hoverStartTime = nil
-        hoverLabel.isHidden = true
     }
 
     @objc private func copyPath() {
-        hoverLabel.isHidden = !style.showsPersistentCopyLabel
-        isHoveringCopyButton = false
-        hoverStartTime = nil
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(fileURL.path, forType: .string)
+        guard pasteboard.setString(fileURL.path, forType: .string) else {
+            copiedUntil = nil
+            copyButton.title = "Copy failed"
+            NSSound.beep()
+            return
+        }
+        copyButton.title = "Copied!  ✓"
+        copiedUntil = Date().addingTimeInterval(1.5)
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
@@ -195,5 +156,25 @@ final class ScreenshotPreviewMenuView: NSView, NSDraggingSource {
 
     func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
         true
+    }
+}
+
+/// One hit target for the label and icon, with feedback even inside an NSMenu.
+@MainActor
+private final class CopyPathButton: NSButton {
+    var isHovered = false {
+        didSet {
+            if oldValue != isHovered { needsDisplay = true }
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let active = isHovered || isHighlighted
+        contentTintColor = active ? .controlAccentColor : .secondaryLabelColor
+        if active {
+            NSColor.controlAccentColor.withAlphaComponent(isHighlighted ? 0.28 : 0.14).setFill()
+            NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+        }
+        super.draw(dirtyRect)
     }
 }
