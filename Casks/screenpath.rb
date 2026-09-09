@@ -1,6 +1,6 @@
 cask "screenpath" do
-  version "0.4"
-  sha256 "30fdd7ff9e60d1cff844bdb931b9339eb7a581922d261789d21ea15cd937657c"
+  version "0.4.2"
+  sha256 "f314adafc1412519a9ba7a30b3dde9542a8897ac996fc0a64438165eb0bf9e93"
 
   url "https://github.com/Ekwinder/screenpath/releases/download/v#{version}/ScreenPath.app.zip"
   name "ScreenPath"
