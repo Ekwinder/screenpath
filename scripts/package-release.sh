@@ -3,14 +3,13 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP_NAME="ScreenPath"
-VERSION="0.4"
-BUILD="4"
+VERSION="0.4.2"
+BUILD="5"
 DIST_DIR="$ROOT/dist"
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 ZIP_PATH="$DIST_DIR/${APP_NAME}.app.zip"
 DMG_PATH="$DIST_DIR/${APP_NAME}.dmg"
 DMG_STAGING="$DIST_DIR/dmg-root"
-RESOURCE_BUNDLE="$ROOT/.build/arm64-apple-macosx/release/ScreenPath_ScreenPath.bundle"
 ICON_FILE="$ROOT/Assets/ScreenPath.icns"
 
 cd "$ROOT"
@@ -20,7 +19,6 @@ rm -rf "$APP_DIR" "$ZIP_PATH" "$DMG_PATH" "$DMG_STAGING"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 cp "$ROOT/.build/release/ScreenPath" "$APP_DIR/Contents/MacOS/ScreenPath"
-cp -R "$RESOURCE_BUNDLE" "$APP_DIR/Contents/Resources/"
 cp "$ICON_FILE" "$APP_DIR/Contents/Resources/ScreenPath.icns"
 chmod +x "$APP_DIR/Contents/MacOS/ScreenPath"
 
