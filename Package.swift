@@ -13,6 +13,7 @@ let package = Package(
         .executableTarget(
             name: "ScreenPath",
             path: "Sources/ScreenPath"
-        )
+        ),
+        .testTarget(name: "ScreenPathTests", dependencies: ["ScreenPath"])
     ]
 )
