@@ -190,6 +190,16 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
     private func addOptionsSection() {
         let optionsMenu = NSMenu()
 
+        let chooseFolderItem = NSMenuItem(title: "Choose Watched Folder…", action: #selector(chooseWatchedFolder), keyEquivalent: "")
+        chooseFolderItem.target = self
+        optionsMenu.addItem(chooseFolderItem)
+
+        let systemFolderItem = NSMenuItem(title: "Use macOS Screenshot Folder", action: #selector(useSystemScreenshotFolder), keyEquivalent: "")
+        systemFolderItem.target = self
+        systemFolderItem.state = watcher.usesCustomDirectory ? .off : .on
+        optionsMenu.addItem(systemFolderItem)
+        optionsMenu.addItem(.separator())
+
         let openLogItem = NSMenuItem(title: "Open paths.log", action: #selector(openLogFile), keyEquivalent: "")
         openLogItem.target = self
         optionsMenu.addItem(openLogItem)
@@ -237,6 +247,33 @@ final class ScreenPathApp: NSObject, NSApplicationDelegate {
         } else {
             playErrorSound()
         }
+    }
+
+    @objc private func chooseWatchedFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Watched Folder"
+        panel.message = "Choose where ScreenPath looks for screenshots. To save new screenshots there, also select this folder in macOS Screenshot Options (⇧⌘5)."
+        panel.prompt = "Watch Folder"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: watcher.watchDirectory, isDirectory: true)
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try watcher.chooseDirectory(url)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Cannot watch this folder"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
+    @objc private func useSystemScreenshotFolder() {
+        watcher.useSystemScreenshotDirectory()
     }
 
     @objc private func openLogFile() {

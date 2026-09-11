@@ -12,6 +12,13 @@ final class ScreenshotWatcher: NSObject {
     private(set) var latestPath: String?
     private(set) var hasDirectoryAccess: Bool = true
 
+    private static let customDirectoryKey = "watchDirectoryOverride"
+    private let defaults: UserDefaults
+
+    var usesCustomDirectory: Bool {
+        defaults.string(forKey: Self.customDirectoryKey) != nil
+    }
+
     private let maxRecent: Int
     private let maxLogEntries: Int
     private let directoryRefreshInterval: TimeInterval
@@ -26,9 +33,11 @@ final class ScreenshotWatcher: NSObject {
         logPath: String,
         maxRecent: Int,
         maxLogEntries: Int,
-        directoryRefreshInterval: TimeInterval
+        directoryRefreshInterval: TimeInterval,
+        defaults: UserDefaults = .standard
     ) {
-        self.watchDirectory = Self.resolveScreenshotDirectory()
+        self.defaults = defaults
+        self.watchDirectory = defaults.string(forKey: Self.customDirectoryKey) ?? Self.resolveScreenshotDirectory()
         self.logPath = logPath
         self.maxRecent = maxRecent
         self.maxLogEntries = maxLogEntries
@@ -51,6 +60,29 @@ final class ScreenshotWatcher: NSObject {
         )
         RunLoop.main.add(timer!, forMode: .common)
         startDirectoryMonitor()
+    }
+
+    func chooseDirectory(_ url: URL) throws {
+        // Validate before changing the saved preference or the active monitor.
+        let path = url.standardizedFileURL.path
+        _ = try fileManager.contentsOfDirectory(atPath: path)
+        defaults.set(path, forKey: Self.customDirectoryKey)
+        switchDirectory(to: path)
+    }
+
+    func useSystemScreenshotDirectory() {
+        defaults.removeObject(forKey: Self.customDirectoryKey)
+        switchDirectory(to: Self.resolveScreenshotDirectory())
+    }
+
+    private func switchDirectory(to path: String) {
+        stopDirectoryMonitor()
+        watchDirectory = path
+        refreshDirectoryAccessState()
+        seedKnownFiles()
+        bootstrapRecentFromDisk()
+        startDirectoryMonitor()
+        onChange?()
     }
 
     @objc private func onTimer() {
@@ -106,7 +138,7 @@ final class ScreenshotWatcher: NSObject {
         guard now.timeIntervalSince(lastDirectoryRefresh) >= directoryRefreshInterval else { return false }
         lastDirectoryRefresh = now
 
-        let resolved = Self.resolveScreenshotDirectory()
+        let resolved = defaults.string(forKey: Self.customDirectoryKey) ?? Self.resolveScreenshotDirectory()
         guard resolved != watchDirectory else { return false }
 
         watchDirectory = resolved

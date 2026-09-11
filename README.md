@@ -31,6 +31,10 @@ Then open `ScreenPath.app` again.
 - Copy the latest screenshot path.
 - Drag the latest screenshot into another app.
 - Access recent screenshots from the menu.
+- Use **Options → Choose Watched Folder…** to select and remember a different screenshot folder. The latest and recent previews update immediately.
+- Use **Options → Use macOS Screenshot Folder** to return to following the system screenshot location (Desktop by default).
+
+Changing the watched folder does not change where macOS saves screenshots. To save new screenshots in your chosen folder, press **Shift–Command–5 → Options → Other Location…** and select it.
 
 ## License
 
