@@ -28,6 +28,7 @@ Then open `ScreenPath.app` again.
 ## Usage
 
 - Click the menu bar icon.
+- Click a latest or recent screenshot preview to open it in your default image app. Drag a preview to share the file instead.
 - Copy the latest screenshot path.
 - Drag the latest screenshot into another app.
 - Access recent screenshots from the menu.
